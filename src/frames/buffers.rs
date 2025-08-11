@@ -1,0 +1,67 @@
+use serde::Serialize;
+use std::io::{self, Write};
+
+#[derive(thiserror::Error, Debug)]
+pub enum BufferError {
+    #[error("buffer write error: {0}")]
+    OnBufferWrite(#[from] io::Error),
+
+    #[error("JSON string write error: {0}")]
+    OnSerdeJson(#[from] serde_json::Error),
+}
+
+/// Write a JSON-escaped string to `buffer`, using a fast path when possible.
+///
+/// This avoids allocation on the slow path by streaming via `serde_json::Serializer`.
+pub(super) fn write_json_string<W: Write>(s: &str, buffer: &mut W) -> Result<(), BufferError> {
+    if needs_escaping_fast(s) {
+        // Slow path: stream quoted+escaped directly into `buffer` (no intermediate String).
+        let mut ser = serde_json::Serializer::new(buffer);
+        s.serialize(&mut ser)?;
+    } else {
+        write_json_string_unchecked(s, buffer)?;
+    }
+
+    Ok(())
+}
+
+pub(super) fn write_json_string_unchecked<W: Write>(
+    s: &str,
+    buffer: &mut W,
+) -> Result<(), BufferError> {
+    write_json_string_with_prefix_unchecked("", s, buffer)
+}
+
+pub(super) fn write_json_string_with_prefix_unchecked<W: Write>(
+    prefix: &str,
+    s: &str,
+    buffer: &mut W,
+) -> Result<(), BufferError> {
+    buffer.write_all(b"\"")?;
+    buffer.write_all(prefix.as_bytes())?;
+    buffer.write_all(s.as_bytes())?;
+    buffer.write_all(b"\"")?;
+
+    Ok(())
+}
+
+fn needs_escaping_fast(s: &str) -> bool {
+    for &b in s.as_bytes() {
+        // ASCII fast-path check
+        if b == b'"' || b == b'\\' || b < 0x20 {
+            return true;
+        }
+        // Non-ASCII byte => might need escaping, must check as chars
+        if b >= 0x80 {
+            return !s.chars().all(char_check);
+        }
+    }
+    false
+}
+
+fn char_check(c: char) -> bool {
+    matches!(
+        c,
+        'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '.' | '@' | '#' | ' ' | ':' | '=' | '/' | '?' | '&' | ';'
+    )
+}
