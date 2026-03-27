@@ -1,6 +1,6 @@
 use criterion::{BenchmarkId, Criterion, Throughput};
 use criterion::{criterion_group, criterion_main};
-use quick_xml_to_json::xml_to_json;
+use quick_xml_to_json::xml_to_json_from_bufread;
 use std::io::Cursor;
 
 fn generate_users_xml(n: usize) -> String {
@@ -19,7 +19,7 @@ fn from_element_counts(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::from_parameter(size), &reader, |b, s| {
             let mut writer = Cursor::new(Vec::new());
 
-            b.iter(|| xml_to_json(s.clone(), &mut writer));
+            b.iter(|| xml_to_json_from_bufread(s.clone(), &mut writer));
         });
     }
     group.finish();

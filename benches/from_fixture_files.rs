@@ -1,6 +1,6 @@
 use criterion::{BenchmarkId, Criterion, Throughput};
 use criterion::{criterion_group, criterion_main};
-use quick_xml_to_json::xml_to_json;
+use quick_xml_to_json::xml_to_json_from_bufread;
 use std::{fs, io::Cursor, path::PathBuf};
 
 fn from_fixture_files(c: &mut Criterion) {
@@ -36,7 +36,7 @@ fn from_fixture_files(c: &mut Criterion) {
                 writer.get_mut().clear();
                 writer.set_position(0);
 
-                xml_to_json(&mut reader, &mut writer).unwrap();
+                xml_to_json_from_bufread(&mut reader, &mut writer).unwrap();
             });
         });
     }

@@ -9,7 +9,7 @@ use decoders::decode_text;
 pub use errors::XmlToJsonError;
 use quick_xml::Reader;
 use quick_xml::events::Event;
-use std::io::{BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 
 static CHILDREN_KEY: &str = "#c";
 static TEXT_NODE_KEY: &str = "#t";
@@ -57,10 +57,32 @@ static MB: usize = 1024 * 1024;
 /// * converting a String to a byte array
 /// * writing to the buffer
 pub fn xml_to_json<R: Read, W: Write>(reader: R, out: W) -> Result<(), XmlToJsonError> {
+    xml_to_json_from_bufread(BufReader::new(reader), out)
+}
+
+/// Convert XML to JSON from a buffered reader.
+///
+/// Use this instead of [`xml_to_json`] when the input is already buffered (e.g. `BufReader`,
+/// `Cursor`, or an in-memory byte slice via `std::io::Cursor`) to avoid double-buffering.
+///
+/// # Errors
+///
+/// This may error when:
+///
+/// * reading XML
+/// * serializing strings to JSON
+/// * converting a String to a byte array
+/// * writing to the buffer
+pub fn xml_to_json_from_bufread<R: BufRead, W: Write>(
+    reader: R,
+    out: W,
+) -> Result<(), XmlToJsonError> {
     let mut writer = std::io::BufWriter::with_capacity(MB * 2, out);
-    let mut xml = Reader::from_reader(BufReader::new(reader));
-    let mut buf = Vec::new();
-    let mut stack: Vec<frames::Element> = Vec::new();
+    let mut xml = Reader::from_reader(reader);
+    xml.config_mut().trim_text(true);
+    let mut buf = Vec::with_capacity(256);
+    let mut stack: Vec<frames::Element> = Vec::with_capacity(16);
+    let mut spare_text_buf = String::new();
 
     loop {
         match (xml.read_event_into(&mut buf)?, stack.last_mut()) {
@@ -68,9 +90,8 @@ pub fn xml_to_json<R: Read, W: Write>(reader: R, out: W) -> Result<(), XmlToJson
             //
             // Open root element that has children
             (Event::Start(e), None) => {
-                let mut frame = frames::Element::from_element(&e, &xml)?;
-
-                frame.open(&mut writer)?;
+                let text_buf = std::mem::take(&mut spare_text_buf);
+                let mut frame = frames::Element::new_and_open(&e, &xml, &mut writer, text_buf)?;
                 frame.process_element_attributes(&e, &xml, &mut writer)?;
 
                 stack.push(frame);
@@ -78,9 +99,7 @@ pub fn xml_to_json<R: Read, W: Write>(reader: R, out: W) -> Result<(), XmlToJson
 
             // Open root that has no children
             (Event::Empty(e), None) => {
-                let mut frame = frames::EmptyNode::from_element(&e, &xml)?;
-
-                frame.open(&mut writer)?;
+                let mut frame = frames::EmptyNode::new_and_open(&e, &xml, &mut writer)?;
                 frame.process_element_attributes(&e, &xml, &mut writer)?;
                 frame.close(&mut writer)?;
 
@@ -94,9 +113,8 @@ pub fn xml_to_json<R: Read, W: Write>(reader: R, out: W) -> Result<(), XmlToJson
             (Event::Start(e), Some(parent)) => {
                 parent.begin_child(&mut writer)?;
 
-                let mut frame = frames::Element::from_element(&e, &xml)?;
-
-                frame.open(&mut writer)?;
+                let text_buf = std::mem::take(&mut spare_text_buf);
+                let mut frame = frames::Element::new_and_open(&e, &xml, &mut writer, text_buf)?;
                 frame.process_element_attributes(&e, &xml, &mut writer)?;
 
                 stack.push(frame);
@@ -106,9 +124,7 @@ pub fn xml_to_json<R: Read, W: Write>(reader: R, out: W) -> Result<(), XmlToJson
             (Event::Empty(e), Some(parent)) => {
                 parent.begin_child(&mut writer)?;
 
-                let mut frame = frames::EmptyNode::from_element(&e, &xml)?;
-
-                frame.open(&mut writer)?;
+                let mut frame = frames::EmptyNode::new_and_open(&e, &xml, &mut writer)?;
                 frame.process_element_attributes(&e, &xml, &mut writer)?;
                 frame.close(&mut writer)?;
             }
@@ -123,6 +139,7 @@ pub fn xml_to_json<R: Read, W: Write>(reader: R, out: W) -> Result<(), XmlToJson
             (Event::End(_), _) => {
                 if let Some(mut frame) = stack.pop() {
                     frame.close(&mut writer)?;
+                    spare_text_buf = frame.take_text_buf();
 
                     // If there's nothing else on the stack, we're done
                     if stack.is_empty() {

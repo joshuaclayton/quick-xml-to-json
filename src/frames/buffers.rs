@@ -47,21 +47,10 @@ pub(super) fn write_json_string_with_prefix_unchecked<W: Write>(
 
 fn needs_escaping_fast(s: &str) -> bool {
     for &b in s.as_bytes() {
-        // ASCII fast-path check
         if b == b'"' || b == b'\\' || b < 0x20 {
             return true;
         }
-        // Non-ASCII byte => might need escaping, must check as chars
-        if b >= 0x80 {
-            return !s.chars().all(char_check);
-        }
+        // Non-ASCII UTF-8 bytes are valid in JSON strings without escaping
     }
     false
-}
-
-fn char_check(c: char) -> bool {
-    matches!(
-        c,
-        'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '.' | '@' | '#' | ' ' | ':' | '=' | '/' | '?' | '&' | ';'
-    )
 }

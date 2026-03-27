@@ -1,11 +1,9 @@
 use super::buffers::{self, write_json_string, write_json_string_unchecked};
+use crate::XmlToJsonError;
 use quick_xml::{Reader, events::BytesStart};
 use std::io::Write;
 
 pub(crate) struct Element {
-    // Tag name
-    pub(crate) name: String,
-
     // Are we operating on the first field of this element?
     //
     // This determines whether we need to insert a comma before the next field
@@ -39,29 +37,31 @@ impl super::AttributesWriter for Element {
 }
 
 impl Element {
-    pub(crate) fn from_element<R: std::io::BufRead>(
+    /// Create the element and immediately write the opening `{"name":{` from the borrowed tag.
+    pub(crate) fn new_and_open<R: std::io::BufRead, W: Write>(
         e: &BytesStart,
         xml: &Reader<R>,
-    ) -> Result<Self, quick_xml::Error> {
+        mut w: W,
+        text_buf: String,
+    ) -> Result<Self, XmlToJsonError> {
         let qname = e.name();
         let tag = crate::decoders::decode_bytes(xml, qname.as_ref())?;
 
+        w.write_all(b"{")?;
+        write_json_string_unchecked(&tag, &mut w)?;
+        w.write_all(b":{")?;
+
         Ok(Self {
-            name: tag.into_owned(),
             first_field: true,
             children_open: false,
             first_child: true,
-            text_buf: String::new(),
+            text_buf,
         })
     }
 
-    /// Write the wrapper and open the element object: {"name":{
-    pub(crate) fn open<W: Write>(&mut self, mut w: W) -> Result<(), buffers::BufferError> {
-        w.write_all(b"{")?;
-        write_json_string(&self.name, &mut w)?;
-        w.write_all(b":{")?;
-
-        Ok(())
+    /// Reclaim the text buffer (cleared but retaining capacity) for reuse.
+    pub(crate) fn take_text_buf(&mut self) -> String {
+        std::mem::take(&mut self.text_buf)
     }
 
     /// Buffer text until we either see children or close.
