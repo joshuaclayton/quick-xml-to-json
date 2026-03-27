@@ -1,4 +1,4 @@
-#![warn(clippy::pedantic)]
+#![forbid(unsafe_code)]
 
 mod decoders;
 mod errors;
@@ -326,12 +326,12 @@ mod tests {
 
     #[test]
     fn test_empty_xml() {
-        assert!(super::xml_to_json("".as_bytes(), Vec::new()).is_err());
+        assert!(super::xml_to_json(b"".as_slice(), Vec::new()).is_err());
     }
 
     #[test]
     fn test_malformed_xml() {
-        assert!(super::xml_to_json("<root><unclosed>".as_bytes(), Vec::new()).is_err());
+        assert!(super::xml_to_json(b"<root><unclosed>".as_slice(), Vec::new()).is_err());
     }
 
     #[test]

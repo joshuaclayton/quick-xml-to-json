@@ -1,8 +1,8 @@
 mod attributes_writer;
-pub(crate) mod buffers;
+pub mod buffers;
 mod element;
 mod empty_node;
 
-pub(crate) use attributes_writer::AttributesWriter;
-pub(crate) use element::Element;
-pub(crate) use empty_node::EmptyNode;
+pub use attributes_writer::AttributesWriter;
+pub use element::Element;
+pub use empty_node::EmptyNode;

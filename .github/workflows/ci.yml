@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  checks:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Format
+            target: test-fmt
+          - name: Clippy
+            target: test-lint
+          - name: Test Suite
+            target: test-suite
+          - name: Docs
+            target: test-doc
+          - name: Doc Links
+            target: test-doc-links
+          - name: Provided Examples
+            target: test-examples
+          - name: TOML
+            target: test-toml
+          - name: Audit
+            target: test-audit
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install just
+        uses: taiki-e/install-action@just
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+      - name: Cache Cargo artifacts
+        uses: Swatinem/rust-cache@v2
+      - name: Run ${{ matrix.target }}
+        run: just ${{ matrix.target }}

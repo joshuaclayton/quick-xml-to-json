@@ -3,7 +3,7 @@ use crate::XmlToJsonError;
 use quick_xml::{Reader, events::BytesStart};
 use std::io::Write;
 
-pub(crate) struct EmptyNode {
+pub struct EmptyNode {
     // Are we operating on the first field of this element?
     //
     // This determines whether we need to insert a comma before the next field
@@ -38,7 +38,7 @@ impl EmptyNode {
     }
 
     /// Close current element
-    #[allow(clippy::unused_self)]
+    #[expect(clippy::unused_self, reason = "method consistency with Element::close")]
     pub(crate) fn close<W: Write>(&self, mut w: W) -> Result<(), buffers::BufferError> {
         w.write_all(b"}}")?;
 

@@ -25,3 +25,36 @@ harness = false
 [[bench]]
 name = "from_fixture_files"
 harness = false
+
+[lints.clippy]
+pedantic = "deny"
+nursery = "deny"
+# Public API semver safety
+exhaustive_enums = "deny"
+exhaustive_structs = "deny"
+# No panics in library code
+panic = "deny"
+panic_in_result_fn = "deny"
+unwrap_in_result = "deny"
+get_unwrap = "deny"
+expect_used = "deny"
+todo = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+# No debug/print output from a library
+print_stdout = "deny"
+print_stderr = "deny"
+use_debug = "deny"
+dbg_macro = "deny"
+exit = "deny"
+# Error handling discipline
+map_err_ignore = "deny"
+indexing_slicing = "deny"
+string_slice = "deny"     # can panic on non-ASCII boundaries
+# Meta: suppressions must explain themselves
+allow_attributes_without_reason = "deny"
+allow_attributes = "deny"
+# Style consistency worth enforcing
+partial_pub_fields = "deny"
+unseparated_literal_suffix = "deny"
+missing_assert_message = "deny"

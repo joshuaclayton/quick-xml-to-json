@@ -3,7 +3,7 @@ use crate::{XmlToJsonError, decoders::decode_bytes};
 use quick_xml::{Reader, events::BytesStart};
 use std::io::Write;
 
-pub(crate) trait AttributesWriter {
+pub trait AttributesWriter {
     fn first_field(&self) -> bool;
     fn process_first_field(&mut self);
 

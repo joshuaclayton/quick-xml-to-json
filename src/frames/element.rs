@@ -3,7 +3,7 @@ use crate::XmlToJsonError;
 use quick_xml::{Reader, events::BytesStart};
 use std::io::Write;
 
-pub(crate) struct Element {
+pub struct Element {
     // Are we operating on the first field of this element?
     //
     // This determines whether we need to insert a comma before the next field

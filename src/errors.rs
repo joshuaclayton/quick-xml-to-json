@@ -1,5 +1,6 @@
 use crate::frames::buffers;
 
+#[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
 pub enum XmlToJsonError {
     #[error("QuickXML Error: {0}")]
