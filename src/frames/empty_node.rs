@@ -1,4 +1,4 @@
-use super::buffers::{self, write_json_string_unchecked};
+use super::buffers;
 use crate::XmlToJsonError;
 use quick_xml::{Reader, events::BytesStart};
 use std::io::Write;
@@ -30,9 +30,9 @@ impl EmptyNode {
         let qname = e.name();
         let tag = crate::decoders::decode_bytes(xml, qname.as_ref())?;
 
-        w.write_all(b"{")?;
-        write_json_string_unchecked(&tag, &mut w)?;
-        w.write_all(b":{")?;
+        w.write_all(b"{\"")?;
+        w.write_all(tag.as_bytes())?;
+        w.write_all(b"\":{")?;
 
         Ok(Self { first_field: true })
     }

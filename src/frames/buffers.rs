@@ -19,28 +19,10 @@ pub(super) fn write_json_string<W: Write>(s: &str, buffer: &mut W) -> Result<(),
         let mut ser = serde_json::Serializer::new(buffer);
         s.serialize(&mut ser)?;
     } else {
-        write_json_string_unchecked(s, buffer)?;
+        buffer.write_all(b"\"")?;
+        buffer.write_all(s.as_bytes())?;
+        buffer.write_all(b"\"")?;
     }
-
-    Ok(())
-}
-
-pub(super) fn write_json_string_unchecked<W: Write>(
-    s: &str,
-    buffer: &mut W,
-) -> Result<(), BufferError> {
-    write_json_string_with_prefix_unchecked("", s, buffer)
-}
-
-pub(super) fn write_json_string_with_prefix_unchecked<W: Write>(
-    prefix: &str,
-    s: &str,
-    buffer: &mut W,
-) -> Result<(), BufferError> {
-    buffer.write_all(b"\"")?;
-    buffer.write_all(prefix.as_bytes())?;
-    buffer.write_all(s.as_bytes())?;
-    buffer.write_all(b"\"")?;
 
     Ok(())
 }
