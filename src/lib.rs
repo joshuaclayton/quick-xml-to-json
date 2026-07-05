@@ -11,8 +11,6 @@ use quick_xml::Reader;
 use quick_xml::events::Event;
 use std::io::{BufRead, BufReader, Read, Write};
 
-static CHILDREN_KEY: &str = "#c";
-static TEXT_NODE_KEY: &str = "#t";
 static MB: usize = 1024 * 1024;
 
 /// Convert XML to JSON

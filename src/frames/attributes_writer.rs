@@ -1,4 +1,4 @@
-use super::buffers::{write_json_string, write_json_string_with_prefix_unchecked};
+use super::buffers::write_json_string;
 use crate::{
     XmlToJsonError,
     decoders::{decode_bytes, unescape_lenient},
@@ -22,12 +22,13 @@ pub trait AttributesWriter {
             let raw_value = decode_bytes(xml, &attr.value)?;
             let value = unescape_lenient(&raw_value)?;
 
-            if !self.first_field() {
-                writer.write_all(b",")?;
+            if self.first_field() {
+                writer.write_all(b"\"@")?;
+            } else {
+                writer.write_all(b",\"@")?;
             }
-
-            write_json_string_with_prefix_unchecked("@", &key, &mut writer)?;
-            writer.write_all(b":")?;
+            writer.write_all(key.as_bytes())?;
+            writer.write_all(b"\":")?;
             write_json_string(&value, &mut writer)?;
             self.process_first_field();
         }

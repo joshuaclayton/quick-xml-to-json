@@ -1,4 +1,4 @@
-use super::buffers::{self, write_json_string, write_json_string_unchecked};
+use super::buffers::{self, write_json_string};
 use crate::XmlToJsonError;
 use quick_xml::{Reader, events::BytesStart};
 use std::io::Write;
@@ -47,9 +47,9 @@ impl Element {
         let qname = e.name();
         let tag = crate::decoders::decode_bytes(xml, qname.as_ref())?;
 
-        w.write_all(b"{")?;
-        write_json_string_unchecked(&tag, &mut w)?;
-        w.write_all(b":{")?;
+        w.write_all(b"{\"")?;
+        w.write_all(tag.as_bytes())?;
+        w.write_all(b"\":{")?;
 
         Ok(Self {
             first_field: true,
@@ -107,11 +107,11 @@ impl Element {
             self.text_buf.clear();
             return Ok(());
         }
-        if !self.first_field {
-            w.write_all(b",")?;
+        if self.first_field {
+            w.write_all(b"\"#t\":")?;
+        } else {
+            w.write_all(b",\"#t\":")?;
         }
-        write_json_string_unchecked(crate::TEXT_NODE_KEY, &mut w)?;
-        w.write_all(b":")?;
         write_json_string(trimmed, &mut w)?;
 
         self.first_field = false;
@@ -123,11 +123,11 @@ impl Element {
     /// Ensure "#c":[ is opened
     fn ensure_children_open<W: Write>(&mut self, mut w: W) -> Result<(), buffers::BufferError> {
         if !self.children_open {
-            if !self.first_field {
-                w.write_all(b",")?;
+            if self.first_field {
+                w.write_all(b"\"#c\":[")?;
+            } else {
+                w.write_all(b",\"#c\":[")?;
             }
-            write_json_string_unchecked(crate::CHILDREN_KEY, &mut w)?;
-            w.write_all(b":[")?;
             self.children_open = true;
             self.first_field = false;
             self.first_child = true;
