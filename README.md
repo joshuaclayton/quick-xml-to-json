@@ -11,7 +11,7 @@ This crate provides a fast, memory-efficient way to convert XML documents to JSO
 
 - **High Performance**: Built on quick-xml for maximum parsing speed
 - **Zero-Copy Option**: `xml_to_json_from_slice` borrows events directly from in-memory input
-- **Streaming**: Processes XML as a stream without building a DOM, keeping memory usage flat
+- **Streaming**: Processes XML as a stream without building a DOM — peak heap stays ~2 MiB regardless of document size
 - **Attribute Support**: Preserves XML attributes in JSON output
 - **Entity Handling**: Resolves predefined entities and numeric character references
 - **Error Handling**: Comprehensive error types with `thiserror`
@@ -119,6 +119,17 @@ Measured with criterion on a 12-core MacBook Pro M4:
 
 On synthetic documents of many small elements, the buffered path sustains
 9.4–9.8 million elements per second.
+
+### Memory
+
+Peak heap allocated during conversion, measured with a counting allocator while
+streaming each fixture from file to a sink: 2.01 MiB for SigmodRecord, mondial,
+and orders; 2.11 MiB for the ~25 MB nasa.xml. The footprint is dominated by the
+2 MiB output buffer and is independent of document size. Reproduce with:
+
+```sh
+cargo run --release --example peak_memory -- benches/fixtures/nasa.xml
+```
 
 Run benchmarks with:
 
