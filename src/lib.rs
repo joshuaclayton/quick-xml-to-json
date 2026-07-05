@@ -5,7 +5,6 @@ mod errors;
 mod frames;
 
 use crate::frames::AttributesWriter;
-use decoders::decode_text;
 pub use errors::XmlToJsonError;
 use quick_xml::Reader;
 use quick_xml::events::Event;
@@ -130,17 +129,16 @@ macro_rules! convert_events {
                 // Open root element that has children
                 (Event::Start(e), None) => {
                     let text_buf = std::mem::take(&mut spare_text_buf);
-                    let mut frame =
-                        frames::Element::new_and_open(&e, &$xml, &mut $writer, text_buf)?;
-                    frame.process_element_attributes(&e, &$xml, &mut $writer)?;
+                    let mut frame = frames::Element::new_and_open(&e, &mut $writer, text_buf)?;
+                    frame.process_element_attributes(&e, &mut $writer)?;
 
                     stack.push(frame);
                 }
 
                 // Open root that has no children
                 (Event::Empty(e), None) => {
-                    let mut frame = frames::EmptyNode::new_and_open(&e, &$xml, &mut $writer)?;
-                    frame.process_element_attributes(&e, &$xml, &mut $writer)?;
+                    let mut frame = frames::EmptyNode::new_and_open(&e, &mut $writer)?;
+                    frame.process_element_attributes(&e, &mut $writer)?;
                     frame.close(&mut $writer)?;
 
                     $writer.flush()?;
@@ -154,9 +152,8 @@ macro_rules! convert_events {
                     parent.begin_child(&mut $writer)?;
 
                     let text_buf = std::mem::take(&mut spare_text_buf);
-                    let mut frame =
-                        frames::Element::new_and_open(&e, &$xml, &mut $writer, text_buf)?;
-                    frame.process_element_attributes(&e, &$xml, &mut $writer)?;
+                    let mut frame = frames::Element::new_and_open(&e, &mut $writer, text_buf)?;
+                    frame.process_element_attributes(&e, &mut $writer)?;
 
                     stack.push(frame);
                 }
@@ -165,8 +162,8 @@ macro_rules! convert_events {
                 (Event::Empty(e), Some(parent)) => {
                     parent.begin_child(&mut $writer)?;
 
-                    let mut frame = frames::EmptyNode::new_and_open(&e, &$xml, &mut $writer)?;
-                    frame.process_element_attributes(&e, &$xml, &mut $writer)?;
+                    let mut frame = frames::EmptyNode::new_and_open(&e, &mut $writer)?;
+                    frame.process_element_attributes(&e, &mut $writer)?;
                     frame.close(&mut $writer)?;
                 }
 
@@ -179,8 +176,8 @@ macro_rules! convert_events {
                     if frame.has_text()
                         || !t.iter().all(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n'))
                     {
-                        let text = decode_text(&$xml, &t)?;
-                        frame.push_text(&text);
+                        let text = decoders::decode_bytes(&t)?;
+                        frame.push_text(text);
                     }
                 }
 
@@ -192,10 +189,10 @@ macro_rules! convert_events {
                     if let Some(ch) = r.resolve_char_ref()? {
                         frame.push_char(ch);
                     } else {
-                        let name = decoders::decode_bytes(&$xml, &r)?;
-                        match quick_xml::escape::resolve_predefined_entity(&name) {
+                        let name = decoders::decode_bytes(&r)?;
+                        match quick_xml::escape::resolve_predefined_entity(name) {
                             Some(resolved) => frame.push_resolved(resolved),
-                            None => frame.push_unresolved_ref(&name),
+                            None => frame.push_unresolved_ref(name),
                         }
                     }
                 }

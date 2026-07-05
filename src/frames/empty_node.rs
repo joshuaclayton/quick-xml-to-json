@@ -1,5 +1,5 @@
 use crate::XmlToJsonError;
-use quick_xml::{Reader, events::BytesStart};
+use quick_xml::events::BytesStart;
 use std::io::{self, Write};
 
 pub struct EmptyNode {
@@ -21,13 +21,9 @@ impl super::AttributesWriter for EmptyNode {
 
 impl EmptyNode {
     /// Create the node and immediately write the opening `{"name":{` from the borrowed tag.
-    pub(crate) fn new_and_open<R: std::io::BufRead, W: Write>(
-        e: &BytesStart,
-        xml: &Reader<R>,
-        mut w: W,
-    ) -> Result<Self, XmlToJsonError> {
+    pub(crate) fn new_and_open<W: Write>(e: &BytesStart, mut w: W) -> Result<Self, XmlToJsonError> {
         let qname = e.name();
-        let tag = crate::decoders::decode_bytes(xml, qname.as_ref())?;
+        let tag = crate::decoders::decode_bytes(qname.as_ref())?;
 
         w.write_all(b"{\"")?;
         w.write_all(tag.as_bytes())?;

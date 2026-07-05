@@ -3,24 +3,23 @@ use crate::{
     XmlToJsonError,
     decoders::{decode_bytes, unescape_lenient},
 };
-use quick_xml::{Reader, events::BytesStart};
+use quick_xml::events::BytesStart;
 use std::io::Write;
 
 pub trait AttributesWriter {
     fn first_field(&self) -> bool;
     fn process_first_field(&mut self);
 
-    fn process_element_attributes<R: std::io::BufRead, W: Write>(
+    fn process_element_attributes<W: Write>(
         &mut self,
         e: &BytesStart,
-        xml: &Reader<R>,
         mut writer: W,
     ) -> Result<(), XmlToJsonError> {
         for attr in e.attributes().with_checks(false) {
             let attr = attr?;
-            let key = decode_bytes(xml, attr.key.as_ref())?;
-            let raw_value = decode_bytes(xml, &attr.value)?;
-            let value = unescape_lenient(&raw_value)?;
+            let key = decode_bytes(attr.key.as_ref())?;
+            let raw_value = decode_bytes(&attr.value)?;
+            let value = unescape_lenient(raw_value)?;
 
             if self.first_field() {
                 writer.write_all(b"\"@")?;
