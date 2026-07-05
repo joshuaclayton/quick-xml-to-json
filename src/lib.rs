@@ -10,7 +10,7 @@ use quick_xml::Reader;
 use quick_xml::events::Event;
 use std::io::{BufRead, BufReader, Read, Write};
 
-static MB: usize = 1024 * 1024;
+const MB: usize = 1024 * 1024;
 
 /// Convert XML to JSON
 ///
@@ -54,64 +54,6 @@ static MB: usize = 1024 * 1024;
 /// * writing to the output
 pub fn xml_to_json<R: Read, W: Write>(reader: R, out: W) -> Result<(), XmlToJsonError> {
     xml_to_json_from_bufread(BufReader::new(reader), out)
-}
-
-/// Convert XML to JSON from a buffered reader.
-///
-/// Use this instead of [`xml_to_json`] when the input is already buffered (e.g. a
-/// `BufReader` you manage yourself) to avoid double-buffering. If the whole document
-/// is already in memory, prefer [`xml_to_json_from_slice`], which avoids copying each
-/// event into an intermediate buffer.
-///
-/// # Errors
-///
-/// This may error when:
-///
-/// * reading XML
-/// * encountering a malformed character reference (e.g. `&#xZZ;`)
-/// * writing to the output
-pub fn xml_to_json_from_bufread<R: BufRead, W: Write>(
-    reader: R,
-    out: W,
-) -> Result<(), XmlToJsonError> {
-    let mut writer = std::io::BufWriter::with_capacity(MB * 2, out);
-    let mut xml = Reader::from_reader(reader);
-    let mut buf = Vec::with_capacity(256);
-
-    convert_events!(xml, writer, {
-        buf.clear();
-        xml.read_event_into(&mut buf)?
-    })
-}
-
-/// Convert XML to JSON from an in-memory byte slice.
-///
-/// Use this instead of [`xml_to_json`] when the whole document is already in memory:
-/// events borrow directly from the input, avoiding the copy of every event into an
-/// intermediate buffer that the reader-based APIs must perform.
-///
-/// # Example Usage
-///
-/// ```
-/// use quick_xml_to_json::xml_to_json_from_slice;
-///
-/// let xml = r#"<root><child>Value</child></root>"#;
-/// let mut output = Vec::new();
-/// assert!(xml_to_json_from_slice(xml.as_bytes(), &mut output).is_ok());
-/// ```
-///
-/// # Errors
-///
-/// This may error when:
-///
-/// * reading XML
-/// * encountering a malformed character reference (e.g. `&#xZZ;`)
-/// * writing to the output
-pub fn xml_to_json_from_slice<W: Write>(input: &[u8], out: W) -> Result<(), XmlToJsonError> {
-    let mut writer = std::io::BufWriter::with_capacity(MB * 2, out);
-    let mut xml = Reader::from_reader(input);
-
-    convert_events!(xml, writer, xml.read_event()?)
 }
 
 /// The shared event loop for both reader modes.
@@ -222,7 +164,63 @@ macro_rules! convert_events {
     }};
 }
 
-use convert_events;
+/// Convert XML to JSON from a buffered reader.
+///
+/// Use this instead of [`xml_to_json`] when the input is already buffered (e.g. a
+/// `BufReader` you manage yourself) to avoid double-buffering. If the whole document
+/// is already in memory, prefer [`xml_to_json_from_slice`], which avoids copying each
+/// event into an intermediate buffer.
+///
+/// # Errors
+///
+/// This may error when:
+///
+/// * reading XML
+/// * encountering a malformed character reference (e.g. `&#xZZ;`)
+/// * writing to the output
+pub fn xml_to_json_from_bufread<R: BufRead, W: Write>(
+    reader: R,
+    out: W,
+) -> Result<(), XmlToJsonError> {
+    let mut writer = std::io::BufWriter::with_capacity(MB * 2, out);
+    let mut xml = Reader::from_reader(reader);
+    let mut buf = Vec::with_capacity(256);
+
+    convert_events!(xml, writer, {
+        buf.clear();
+        xml.read_event_into(&mut buf)?
+    })
+}
+
+/// Convert XML to JSON from an in-memory byte slice.
+///
+/// Use this instead of [`xml_to_json`] when the whole document is already in memory:
+/// events borrow directly from the input, avoiding the copy of every event into an
+/// intermediate buffer that the reader-based APIs must perform.
+///
+/// # Example Usage
+///
+/// ```
+/// use quick_xml_to_json::xml_to_json_from_slice;
+///
+/// let xml = r#"<root><child>Value</child></root>"#;
+/// let mut output = Vec::new();
+/// assert!(xml_to_json_from_slice(xml.as_bytes(), &mut output).is_ok());
+/// ```
+///
+/// # Errors
+///
+/// This may error when:
+///
+/// * reading XML
+/// * encountering a malformed character reference (e.g. `&#xZZ;`)
+/// * writing to the output
+pub fn xml_to_json_from_slice<W: Write>(input: &[u8], out: W) -> Result<(), XmlToJsonError> {
+    let mut writer = std::io::BufWriter::with_capacity(MB * 2, out);
+    let mut xml = Reader::from_reader(input);
+
+    convert_events!(xml, writer, xml.read_event()?)
+}
 
 #[cfg(test)]
 mod tests {

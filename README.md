@@ -118,7 +118,7 @@ Measured with criterion on a 12-core MacBook Pro M4:
 | nasa.xml | ~25.1 MB | 414 MiB/s | 467 MiB/s |
 
 On synthetic documents of many small elements, the buffered path sustains
-9.4–9.8 million elements per second.
+9.2–9.5 million elements per second and the slice path 10.0–10.4 million.
 
 ### Memory
 

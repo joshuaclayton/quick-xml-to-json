@@ -1,5 +1,15 @@
 use std::io::{self, Write};
 
+/// Write the opening `{"tag":{` shared by element and empty-node frames.
+///
+/// Tag names come straight from the parser and are written unescaped: XML names
+/// cannot legally contain quotes, backslashes, or control characters.
+pub(super) fn write_tag_open<W: Write>(tag: &str, buffer: &mut W) -> io::Result<()> {
+    buffer.write_all(b"{\"")?;
+    buffer.write_all(tag.as_bytes())?;
+    buffer.write_all(b"\":{")
+}
+
 /// Write `s` as a quoted JSON string, escaping in a single pass.
 ///
 /// Clean runs are written directly from the input; only bytes requiring an escape

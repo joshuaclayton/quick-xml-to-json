@@ -1,5 +1,5 @@
 mod attributes_writer;
-pub mod buffers;
+mod buffers;
 mod element;
 mod empty_node;
 

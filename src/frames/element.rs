@@ -1,4 +1,4 @@
-use super::buffers::write_json_string;
+use super::buffers::{write_json_string, write_tag_open};
 use crate::XmlToJsonError;
 use quick_xml::events::BytesStart;
 use std::io::{self, Write};
@@ -45,10 +45,7 @@ impl Element {
     ) -> Result<Self, XmlToJsonError> {
         let qname = e.name();
         let tag = crate::decoders::decode_bytes(qname.as_ref())?;
-
-        w.write_all(b"{\"")?;
-        w.write_all(tag.as_bytes())?;
-        w.write_all(b"\":{")?;
+        write_tag_open(tag, &mut w)?;
 
         Ok(Self {
             first_field: true,
