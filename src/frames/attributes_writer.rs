@@ -1,5 +1,8 @@
 use super::buffers::{write_json_string, write_json_string_with_prefix_unchecked};
-use crate::{XmlToJsonError, decoders::decode_bytes};
+use crate::{
+    XmlToJsonError,
+    decoders::{decode_bytes, unescape_lenient},
+};
 use quick_xml::{Reader, events::BytesStart};
 use std::io::Write;
 
@@ -16,7 +19,8 @@ pub trait AttributesWriter {
         for attr in e.attributes().with_checks(false) {
             let attr = attr?;
             let key = decode_bytes(xml, attr.key.as_ref())?;
-            let value = decode_bytes(xml, &attr.value)?;
+            let raw_value = decode_bytes(xml, &attr.value)?;
+            let value = unescape_lenient(&raw_value)?;
 
             if !self.first_field() {
                 writer.write_all(b",")?;

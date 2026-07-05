@@ -20,4 +20,7 @@ pub enum XmlToJsonError {
 
     #[error("Malformed XML")]
     InvalidXML,
+
+    #[error("Invalid character reference: &{0};")]
+    InvalidCharRef(String),
 }

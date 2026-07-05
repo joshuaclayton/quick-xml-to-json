@@ -64,22 +64,47 @@ impl Element {
         std::mem::take(&mut self.text_buf)
     }
 
-    /// Buffer text until we either see children or close.
-    pub(crate) fn push_text(&mut self, s: &str) {
-        if s.is_empty() {
-            return;
-        }
+    /// Whether any text content has been buffered so far.
+    pub(crate) const fn has_text(&self) -> bool {
+        !self.text_buf.is_empty()
+    }
 
-        if !self.text_buf.is_empty() {
-            self.text_buf.push(' ');
+    /// Buffer a text event's content until close.
+    ///
+    /// Whitespace-only events arriving before any real content are skipped — they would be
+    /// edge-trimmed at flush anyway, and skipping them keeps pretty-printed documents from
+    /// churning the buffer. Once real content exists, whitespace is kept so interior spacing
+    /// (e.g. around entity references) survives faithfully.
+    pub(crate) fn push_text(&mut self, s: &str) {
+        if self.text_buf.is_empty() && is_all_xml_whitespace(s) {
+            return;
         }
 
         self.text_buf.push_str(s);
     }
 
-    /// Flush buffered text as "#t":"..."
+    /// Buffer a character resolved from a character reference.
+    pub(crate) fn push_char(&mut self, ch: char) {
+        self.text_buf.push(ch);
+    }
+
+    /// Buffer the resolved value of a predefined entity.
+    pub(crate) fn push_resolved(&mut self, s: &str) {
+        self.text_buf.push_str(s);
+    }
+
+    /// Buffer an unresolvable named entity verbatim, e.g. DTD-defined `&uuml;`.
+    pub(crate) fn push_unresolved_ref(&mut self, name: &str) {
+        self.text_buf.push('&');
+        self.text_buf.push_str(name);
+        self.text_buf.push(';');
+    }
+
+    /// Flush buffered text as "#t":"...", edge-trimmed; interior whitespace is preserved.
     fn flush_text<W: Write>(&mut self, mut w: W) -> Result<(), buffers::BufferError> {
-        if self.text_buf.is_empty() {
+        let trimmed = self.text_buf.trim_matches(is_xml_whitespace);
+        if trimmed.is_empty() {
+            self.text_buf.clear();
             return Ok(());
         }
         if !self.first_field {
@@ -87,7 +112,7 @@ impl Element {
         }
         write_json_string_unchecked(crate::TEXT_NODE_KEY, &mut w)?;
         w.write_all(b":")?;
-        write_json_string(&self.text_buf, &mut w)?;
+        write_json_string(trimmed, &mut w)?;
 
         self.first_field = false;
         self.text_buf.clear();
@@ -98,7 +123,6 @@ impl Element {
     /// Ensure "#c":[ is opened
     fn ensure_children_open<W: Write>(&mut self, mut w: W) -> Result<(), buffers::BufferError> {
         if !self.children_open {
-            self.flush_text(&mut w)?;
             if !self.first_field {
                 w.write_all(b",")?;
             }
@@ -125,17 +149,27 @@ impl Element {
     }
 
     /// Close current element; if #c was opened, close it as well.
+    ///
+    /// Text always flushes here — even when children were written — so trailing
+    /// mixed-content text lands on this element instead of leaking into the next
+    /// frame via the recycled buffer.
     pub(crate) fn close<W: Write>(&mut self, mut w: W) -> Result<(), buffers::BufferError> {
-        // if no children were opened, we still need to flush any text
         if self.children_open {
             w.write_all(b"]")?; // close #c
             self.children_open = false;
-        } else {
-            self.flush_text(&mut w)?;
         }
 
+        self.flush_text(&mut w)?;
         w.write_all(b"}}")?;
 
         Ok(())
     }
+}
+
+const fn is_xml_whitespace(c: char) -> bool {
+    matches!(c, ' ' | '\t' | '\r' | '\n')
+}
+
+fn is_all_xml_whitespace(s: &str) -> bool {
+    s.bytes().all(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n'))
 }

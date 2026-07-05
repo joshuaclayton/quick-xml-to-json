@@ -53,6 +53,7 @@ static MB: usize = 1024 * 1024;
 /// This may error when:
 ///
 /// * reading XML
+/// * encountering a malformed character reference (e.g. `&#xZZ;`)
 /// * serializing strings to JSON
 /// * converting a String to a byte array
 /// * writing to the buffer
@@ -70,6 +71,7 @@ pub fn xml_to_json<R: Read, W: Write>(reader: R, out: W) -> Result<(), XmlToJson
 /// This may error when:
 ///
 /// * reading XML
+/// * encountering a malformed character reference (e.g. `&#xZZ;`)
 /// * serializing strings to JSON
 /// * converting a String to a byte array
 /// * writing to the buffer
@@ -79,7 +81,6 @@ pub fn xml_to_json_from_bufread<R: BufRead, W: Write>(
 ) -> Result<(), XmlToJsonError> {
     let mut writer = std::io::BufWriter::with_capacity(MB * 2, out);
     let mut xml = Reader::from_reader(reader);
-    xml.config_mut().trim_text(true);
     let mut buf = Vec::with_capacity(256);
     let mut stack: Vec<frames::Element> = Vec::with_capacity(16);
     let mut spare_text_buf = String::new();
@@ -130,9 +131,32 @@ pub fn xml_to_json_from_bufread<R: BufRead, W: Write>(
             }
 
             // Process a text node of an element
+            //
+            // Whitespace-only events before any real content would be edge-trimmed away
+            // anyway, so skip them on the raw bytes without paying for UTF-8 decoding —
+            // pretty-printed documents are full of them.
             (Event::Text(t), Some(frame)) => {
-                let text = decode_text(&xml, &t)?;
-                frame.push_text(&text);
+                if frame.has_text() || !t.iter().all(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n'))
+                {
+                    let text = decode_text(&xml, &t)?;
+                    frame.push_text(&text);
+                }
+            }
+
+            // Process a reference (`&amp;`, `&#65;`, ...) within an element's text.
+            //
+            // Character references and predefined entities resolve to their characters;
+            // named entities we cannot resolve (e.g. DTD-defined) pass through verbatim.
+            (Event::GeneralRef(r), Some(frame)) => {
+                if let Some(ch) = r.resolve_char_ref()? {
+                    frame.push_char(ch);
+                } else {
+                    let name = decoders::decode_bytes(&xml, &r)?;
+                    match quick_xml::escape::resolve_predefined_entity(&name) {
+                        Some(resolved) => frame.push_resolved(resolved),
+                        None => frame.push_unresolved_ref(&name),
+                    }
+                }
             }
 
             // Close out the current node on the stack
@@ -320,6 +344,156 @@ mod tests {
                 ]
             }
         });
+
+        assert_eq!(expected_json, convert_xml_to_json(xml));
+    }
+
+    #[test]
+    fn test_mixed_content_trailing_text_is_kept_and_does_not_leak() {
+        let xml = "<r><a>pre <b/>post</a><c>text</c></r>";
+        let expected_json = serde_json::json!({
+            "r": {
+                "#c": [
+                    {
+                        "a": {
+                            "#c": [ { "b": {} } ],
+                            "#t": "pre post"
+                        }
+                    },
+                    {
+                        "c": { "#t": "text" }
+                    }
+                ]
+            }
+        });
+
+        assert_eq!(expected_json, convert_xml_to_json(xml));
+    }
+
+    #[test]
+    fn test_text_after_children_only() {
+        let xml = "<a><b/>tail</a>";
+        let expected_json = serde_json::json!({
+            "a": {
+                "#c": [ { "b": {} } ],
+                "#t": "tail"
+            }
+        });
+
+        assert_eq!(expected_json, convert_xml_to_json(xml));
+    }
+
+    #[test]
+    fn test_predefined_entities_in_text() {
+        let xml = "<a>x &amp; y &lt;tag&gt; &quot;q&quot; &apos;s&apos;</a>";
+        let expected_json = serde_json::json!({
+            "a": { "#t": r#"x & y <tag> "q" 's'"# }
+        });
+
+        assert_eq!(expected_json, convert_xml_to_json(xml));
+    }
+
+    #[test]
+    fn test_entities_do_not_introduce_spaces() {
+        let xml = "<a>a&amp;b</a>";
+        let expected_json = serde_json::json!({
+            "a": { "#t": "a&b" }
+        });
+
+        assert_eq!(expected_json, convert_xml_to_json(xml));
+    }
+
+    #[test]
+    fn test_numeric_char_refs_in_text() {
+        let xml = "<a>&#72;&#x65;y</a>";
+        let expected_json = serde_json::json!({
+            "a": { "#t": "Hey" }
+        });
+
+        assert_eq!(expected_json, convert_xml_to_json(xml));
+    }
+
+    #[test]
+    fn test_char_ref_producing_json_escapable_char() {
+        let xml = "<a>x&#10;y</a>";
+        let expected_json = serde_json::json!({
+            "a": { "#t": "x\ny" }
+        });
+
+        assert_eq!(expected_json, convert_xml_to_json(xml));
+    }
+
+    #[test]
+    fn test_unknown_named_entity_passes_through_in_text() {
+        let xml = "<a>x &uuml; y</a>";
+        let expected_json = serde_json::json!({
+            "a": { "#t": "x &uuml; y" }
+        });
+
+        assert_eq!(expected_json, convert_xml_to_json(xml));
+    }
+
+    #[test]
+    fn test_invalid_char_ref_in_text_errors() {
+        assert!(super::xml_to_json(b"<a>&#xZZ;</a>".as_slice(), Vec::new()).is_err());
+        assert!(super::xml_to_json(b"<a>&#+65;</a>".as_slice(), Vec::new()).is_err());
+    }
+
+    #[test]
+    fn test_entities_in_attribute_values() {
+        let xml = r#"<a m="5 &lt; 6" q="&quot;q&quot;" n="A&#66;C" u="x &uuml; y"/>"#;
+        let expected_json = serde_json::json!({
+            "a": {
+                "@m": "5 < 6",
+                "@q": "\"q\"",
+                "@n": "ABC",
+                "@u": "x &uuml; y"
+            }
+        });
+
+        assert_eq!(expected_json, convert_xml_to_json(xml));
+    }
+
+    #[test]
+    fn test_invalid_char_ref_in_attribute_errors() {
+        assert!(super::xml_to_json(br#"<a t="&#xZZ;"/>"#.as_slice(), Vec::new()).is_err());
+        assert!(super::xml_to_json(br#"<a t="&#+65;"/>"#.as_slice(), Vec::new()).is_err());
+    }
+
+    #[test]
+    fn test_bare_ampersand_in_attribute_passes_through() {
+        let xml = r#"<a href="q?x=1&y=2"/>"#;
+        let expected_json = serde_json::json!({
+            "a": { "@href": "q?x=1&y=2" }
+        });
+
+        assert_eq!(expected_json, convert_xml_to_json(xml));
+    }
+
+    #[test]
+    fn test_interior_whitespace_preserved_in_text() {
+        let xml = "<a>line1\nline2</a>";
+        let expected_json = serde_json::json!({
+            "a": { "#t": "line1\nline2" }
+        });
+
+        assert_eq!(expected_json, convert_xml_to_json(xml));
+    }
+
+    #[test]
+    fn test_edge_whitespace_trimmed_from_text() {
+        let xml = "<a>\n  padded  \n</a>";
+        let expected_json = serde_json::json!({
+            "a": { "#t": "padded" }
+        });
+
+        assert_eq!(expected_json, convert_xml_to_json(xml));
+    }
+
+    #[test]
+    fn test_whitespace_only_text_produces_no_text_node() {
+        let xml = "<a>   </a>";
+        let expected_json = serde_json::json!({ "a": {} });
 
         assert_eq!(expected_json, convert_xml_to_json(xml));
     }
