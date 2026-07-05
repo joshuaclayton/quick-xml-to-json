@@ -1,4 +1,4 @@
-use quick_xml_to_json::xml_to_json;
+use quick_xml_to_json::{xml_to_json, xml_to_json_from_slice};
 use std::fmt::Write as _;
 use std::time::Instant;
 
@@ -46,6 +46,27 @@ fn throughput_does_not_regress_catastrophically() {
 }
 
 #[test]
+fn slice_throughput_does_not_regress_catastrophically() {
+    let xml = generate_xml(10_000);
+    let input = xml.as_bytes();
+
+    // Warm up the allocator
+    let mut out = Vec::with_capacity(input.len() * 2);
+    xml_to_json_from_slice(input, &mut out).unwrap_or_default();
+    out.clear();
+
+    // Timed run
+    let start = Instant::now();
+    xml_to_json_from_slice(input, &mut out).unwrap_or_default();
+    let elapsed = start.elapsed();
+
+    assert!(
+        elapsed.as_millis() < 500,
+        "10k element slice conversion took {elapsed:?}, expected < 500ms — possible performance regression"
+    );
+}
+
+#[test]
 fn deeply_nested_xml_does_not_regress() {
     // Build deeply nested XML to stress the stack path
     let depth = 200;
@@ -68,5 +89,15 @@ fn deeply_nested_xml_does_not_regress() {
     assert!(
         elapsed.as_millis() < 100,
         "deeply nested conversion took {elapsed:?}, expected < 100ms — possible performance regression"
+    );
+
+    out.clear();
+    let start = Instant::now();
+    xml_to_json_from_slice(input, &mut out).unwrap_or_default();
+    let elapsed = start.elapsed();
+
+    assert!(
+        elapsed.as_millis() < 100,
+        "deeply nested slice conversion took {elapsed:?}, expected < 100ms — possible performance regression"
     );
 }
