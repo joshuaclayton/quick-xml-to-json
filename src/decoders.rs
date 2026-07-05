@@ -1,21 +1,15 @@
 use crate::XmlToJsonError;
 use quick_xml::escape::resolve_predefined_entity;
-use quick_xml::{Reader, events::BytesText};
 use std::borrow::Cow;
-use std::io::BufRead;
 
-pub fn decode_bytes<'a, R: BufRead>(
-    reader: &Reader<R>,
-    bytes: &'a [u8],
-) -> Result<Cow<'a, str>, quick_xml::Error> {
-    Ok(reader.decoder().decode(bytes)?)
-}
-
-pub fn decode_text<'a, R: BufRead>(
-    reader: &Reader<R>,
-    text: &'a BytesText<'a>,
-) -> Result<Cow<'a, str>, quick_xml::Error> {
-    Ok(reader.decoder().decode(text)?)
+/// Validate `bytes` as UTF-8 without copying.
+///
+/// Without quick-xml's `encoding` feature every document is treated as UTF-8, so
+/// decoding is pure validation; simdutf8 does that with SIMD.
+pub fn decode_bytes(bytes: &[u8]) -> Result<&str, XmlToJsonError> {
+    // simdutf8's basic error is deliberately empty (that's what makes it fast),
+    // so there is nothing to carry into ours.
+    simdutf8::basic::from_utf8(bytes).map_err(|_empty| XmlToJsonError::InvalidUtf8)
 }
 
 /// Resolve XML references in `raw` without failing on entities we cannot know about.

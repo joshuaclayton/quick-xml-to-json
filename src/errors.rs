@@ -15,4 +15,7 @@ pub enum XmlToJsonError {
 
     #[error("Invalid character reference: &{0};")]
     InvalidCharRef(String),
+
+    #[error("Invalid UTF-8 in input")]
+    InvalidUtf8,
 }

@@ -11,6 +11,7 @@ include = ["src/**", "Cargo.toml", "README.md", "LICENSE*"]
 
 [dependencies]
 quick-xml = "0.41"
+simdutf8 = "0.1"
 thiserror = "2.0"
 
 [dev-dependencies]
