@@ -52,9 +52,7 @@ static MB: usize = 1024 * 1024;
 ///
 /// * reading XML
 /// * encountering a malformed character reference (e.g. `&#xZZ;`)
-/// * serializing strings to JSON
-/// * converting a String to a byte array
-/// * writing to the buffer
+/// * writing to the output
 pub fn xml_to_json<R: Read, W: Write>(reader: R, out: W) -> Result<(), XmlToJsonError> {
     xml_to_json_from_bufread(BufReader::new(reader), out)
 }
@@ -70,9 +68,7 @@ pub fn xml_to_json<R: Read, W: Write>(reader: R, out: W) -> Result<(), XmlToJson
 ///
 /// * reading XML
 /// * encountering a malformed character reference (e.g. `&#xZZ;`)
-/// * serializing strings to JSON
-/// * converting a String to a byte array
-/// * writing to the buffer
+/// * writing to the output
 pub fn xml_to_json_from_bufread<R: BufRead, W: Write>(
     reader: R,
     out: W,

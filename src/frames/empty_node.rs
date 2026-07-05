@@ -1,7 +1,6 @@
-use super::buffers;
 use crate::XmlToJsonError;
 use quick_xml::{Reader, events::BytesStart};
-use std::io::Write;
+use std::io::{self, Write};
 
 pub struct EmptyNode {
     // Are we operating on the first field of this element?
@@ -39,7 +38,7 @@ impl EmptyNode {
 
     /// Close current element
     #[expect(clippy::unused_self, reason = "method consistency with Element::close")]
-    pub(crate) fn close<W: Write>(&self, mut w: W) -> Result<(), buffers::BufferError> {
+    pub(crate) fn close<W: Write>(&self, mut w: W) -> io::Result<()> {
         w.write_all(b"}}")?;
 
         Ok(())
