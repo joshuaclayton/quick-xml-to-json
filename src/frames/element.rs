@@ -1,7 +1,7 @@
-use super::buffers::{self, write_json_string};
+use super::buffers::write_json_string;
 use crate::XmlToJsonError;
 use quick_xml::{Reader, events::BytesStart};
-use std::io::Write;
+use std::io::{self, Write};
 
 pub struct Element {
     // Are we operating on the first field of this element?
@@ -101,7 +101,7 @@ impl Element {
     }
 
     /// Flush buffered text as "#t":"...", edge-trimmed; interior whitespace is preserved.
-    fn flush_text<W: Write>(&mut self, mut w: W) -> Result<(), buffers::BufferError> {
+    fn flush_text<W: Write>(&mut self, mut w: W) -> io::Result<()> {
         let trimmed = self.text_buf.trim_matches(is_xml_whitespace);
         if trimmed.is_empty() {
             self.text_buf.clear();
@@ -121,7 +121,7 @@ impl Element {
     }
 
     /// Ensure "#c":[ is opened
-    fn ensure_children_open<W: Write>(&mut self, mut w: W) -> Result<(), buffers::BufferError> {
+    fn ensure_children_open<W: Write>(&mut self, mut w: W) -> io::Result<()> {
         if !self.children_open {
             if self.first_field {
                 w.write_all(b"\"#c\":[")?;
@@ -137,7 +137,7 @@ impl Element {
     }
 
     /// Begin a child entry inside #c: write comma if needed
-    pub(crate) fn begin_child<W: Write>(&mut self, mut w: W) -> Result<(), buffers::BufferError> {
+    pub(crate) fn begin_child<W: Write>(&mut self, mut w: W) -> io::Result<()> {
         self.ensure_children_open(&mut w)?;
 
         if !self.first_child {
@@ -153,7 +153,7 @@ impl Element {
     /// Text always flushes here — even when children were written — so trailing
     /// mixed-content text lands on this element instead of leaking into the next
     /// frame via the recycled buffer.
-    pub(crate) fn close<W: Write>(&mut self, mut w: W) -> Result<(), buffers::BufferError> {
+    pub(crate) fn close<W: Write>(&mut self, mut w: W) -> io::Result<()> {
         if self.children_open {
             w.write_all(b"]")?; // close #c
             self.children_open = false;
