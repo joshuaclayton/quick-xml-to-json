@@ -16,11 +16,18 @@ fn from_element_counts(c: &mut Criterion) {
     for size in [400, 800, 1200, 1600, 2000, 4000, 6000].iter() {
         group.throughput(Throughput::Elements(*size as u64));
         let xml = generate_users_xml(*size);
-        let reader = Cursor::new(xml.clone());
-        group.bench_with_input(BenchmarkId::from_parameter(size), &reader, |b, s| {
-            let mut writer = Cursor::new(Vec::new());
+        group.bench_with_input(BenchmarkId::from_parameter(size), &xml, |b, s| {
+            let mut reader = Cursor::new(s.as_bytes());
+            let mut out = Vec::new();
+            let mut writer = Cursor::new(&mut out);
 
-            b.iter(|| xml_to_json_from_bufread(s.clone(), &mut writer));
+            b.iter(|| {
+                reader.set_position(0);
+                writer.get_mut().clear();
+                writer.set_position(0);
+
+                xml_to_json_from_bufread(&mut reader, &mut writer).unwrap();
+            });
         });
 
         group.bench_with_input(BenchmarkId::new("slice", size), &xml, |b, s| {
