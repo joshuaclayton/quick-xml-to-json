@@ -1,6 +1,6 @@
 use criterion::{BenchmarkId, Criterion, Throughput};
 use criterion::{criterion_group, criterion_main};
-use quick_xml_to_json::xml_to_json_from_bufread;
+use quick_xml_to_json::{xml_to_json_from_bufread, xml_to_json_from_slice};
 use std::{fs, io::Cursor, path::PathBuf};
 
 fn from_fixture_files(c: &mut Criterion) {
@@ -37,6 +37,15 @@ fn from_fixture_files(c: &mut Criterion) {
                 writer.set_position(0);
 
                 xml_to_json_from_bufread(&mut reader, &mut writer).unwrap();
+            });
+        });
+
+        group.bench_with_input(BenchmarkId::new("slice", file), &bytes, |b, data| {
+            let mut out = Vec::with_capacity(data.len() * 2);
+
+            b.iter(|| {
+                out.clear();
+                xml_to_json_from_slice(data, &mut out).unwrap();
             });
         });
     }
