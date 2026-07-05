@@ -1,6 +1,6 @@
 [package]
 name = "quick-xml-to-json"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "High-performance conversion of XML to JSON"
 repository = "https://github.com/joshuaclayton/quick-xml-to-json"

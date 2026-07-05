@@ -58,8 +58,10 @@ pub fn xml_to_json<R: Read, W: Write>(reader: R, out: W) -> Result<(), XmlToJson
 
 /// Convert XML to JSON from a buffered reader.
 ///
-/// Use this instead of [`xml_to_json`] when the input is already buffered (e.g. `BufReader`,
-/// `Cursor`, or an in-memory byte slice via `std::io::Cursor`) to avoid double-buffering.
+/// Use this instead of [`xml_to_json`] when the input is already buffered (e.g. a
+/// `BufReader` you manage yourself) to avoid double-buffering. If the whole document
+/// is already in memory, prefer [`xml_to_json_from_slice`], which avoids copying each
+/// event into an intermediate buffer.
 ///
 /// # Errors
 ///
